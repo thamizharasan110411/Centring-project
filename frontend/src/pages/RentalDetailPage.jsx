@@ -220,10 +220,17 @@ export default function RentalDetailPage() {
                       {(ret.items || []).map((ri) => (
                         <p key={ri.id}>
                           {ri.returnedQuantity > 0 && `${ri.returnedQuantity} returned`}
-                          {ri.damagedQuantity > 0 && ` · ${ri.damagedQuantity} damaged (+${inr(ri.damageCharge)})`}
-                          {ri.missingQuantity > 0 && ` · ${ri.missingQuantity} missing (+${inr(ri.missingCharge)})`}
+                          {ri.missingQuantity > 0 && ` · ${ri.missingQuantity} missing`}
+                          {ri.damagedQuantity > 0 && ` · ${ri.damagedQuantity} damaged`}
+                          {Number(ri.damageCharge) > 0 && ` (+${inr(ri.damageCharge)})`}
+                          {Number(ri.missingCharge) > 0 && ` (+${inr(ri.missingCharge)})`}
                         </p>
                       ))}
+                      {ret.missingDetails && (
+                        <p className="mt-1 rounded bg-amber-50 px-2 py-1 font-medium text-amber-800">
+                          Missing pieces: {ret.missingDetails}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}

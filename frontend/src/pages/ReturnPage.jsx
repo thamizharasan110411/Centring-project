@@ -48,16 +48,14 @@ export default function ReturnPage() {
         remaining: Number(it.remainingQuantity),
         rate: Number(it.rentalRate),
         returned: '',
-        damaged: '',
         missing: '',
-        damageCharge: '',
-        missingCharge: '',
         error: null,
       }));
   }, [rental]);
 
   const [lines, setLines] = useState([]);
   const [notes, setNotes] = useState('');
+  const [missingDetails, setMissingDetails] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -68,15 +66,12 @@ export default function ReturnPage() {
   const setLine = (idx, patch) =>
     setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch, error: null } : l)));
 
-  const suggestedCharge = (qty, rate) => Math.round((Number(qty || 0) * Number(rate || 0)) * 100) / 100;
-
   const validate = () => {
     const errs = lines.map((l) => {
       const returned = Number(l.returned) || 0;
-      const damaged = Number(l.damaged) || 0;
       const missing = Number(l.missing) || 0;
-      const total = returned + damaged + missing;
-      if (!Number.isInteger(returned) || !Number.isInteger(damaged) || !Number.isInteger(missing) || returned < 0 || damaged < 0 || missing < 0) {
+      const total = returned + missing;
+      if (!Number.isInteger(returned) || !Number.isInteger(missing) || returned < 0 || missing < 0) {
         return 'Quantities must be whole numbers (0 or more)';
       }
       if (total > l.remaining) return `Only ${l.remaining} ${l.asset?.unit}(s) remaining`;
@@ -85,6 +80,17 @@ export default function ReturnPage() {
     setLines((ls) => ls.map((l, i) => ({ ...l, error: errs[i] })));
     return errs.every((e) => !e);
   };
+
+  // --- Overdue preview -------------------------------------------------
+  // Overdue days = whole days between the due date and today (the return date).
+  const overdueDays = rental ? Math.max(0, daysBetween(rental.dueDate, new Date())) : 0;
+  const overduePreview = useMemo(() => {
+    if (!rental || overdueDays <= 0) return 0;
+    return lines.reduce((sum, l) => {
+      const qty = (Number(l.returned) || 0) + (Number(l.missing) || 0);
+      return sum + qty * Number(l.rate || 0) * overdueDays;
+    }, 0);
+  }, [rental, lines, overdueDays]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -95,28 +101,32 @@ export default function ReturnPage() {
     setSubmitting(true);
     try {
       const items = lines
-        .filter((l) => (Number(l.returned) || 0) + (Number(l.damaged) || 0) + (Number(l.missing) || 0) > 0)
+        .filter((l) => (Number(l.returned) || 0) + (Number(l.missing) || 0) > 0)
         .map((l) => ({
           rentalItemId: l.rentalItemId,
           returnedQuantity: Number(l.returned) || 0,
-          damagedQuantity: Number(l.damaged) || 0,
           missingQuantity: Number(l.missing) || 0,
-          damageCharge: l.damageCharge === '' || l.damageCharge === null ? undefined : Number(l.damageCharge),
-          missingCharge: l.missingCharge === '' || l.missingCharge === null ? undefined : Number(l.missingCharge),
         }));
       if (items.length === 0) {
-        toast.error('Enter at least one return, damage or missing quantity.');
+        toast.error('Enter at least one return or missing quantity.');
         setSubmitting(false);
         return;
       }
-      const res = await client.post(`/rentals/${rentalId}/return`, { notes: notes || null, items });
+      const res = await client.post(`/rentals/${rentalId}/return`, {
+        notes: notes || null,
+        missingDetails: missingDetails || null,
+        items,
+      });
       const updated = res.data.rental;
-      toast.success(`Return recorded — ${updated.rentalNumber} is now ${updated.status.toLowerCase().replace('_', ' ')}`);
+      const overdueMsg =
+        overdueDays > 0 ? ` · Overdue charge ${inr(updated.overdueCharge)} added to the bill` : '';
+      toast.success(`Return recorded — ${updated.rentalNumber} is now ${updated.status.toLowerCase().replace('_', ' ')}${overdueMsg}`);
       if (routeId) {
         navigate(`/rentals/${rentalId}`, { replace: true });
       } else {
         refetch();
         setNotes('');
+        setMissingDetails('');
       }
     } catch (err) {
       toast.error(err.message);
@@ -127,11 +137,9 @@ export default function ReturnPage() {
 
   if (listLoading && !routeId) return <Spinner />;
 
-  const currentOverdue = rental ? Math.max(0, daysBetween(rental.dueDate, new Date())) : 0;
-
   return (
     <div>
-      <PageHeader title="Return Assets" subtitle="Record returned, damaged and missing quantities — inventory updates automatically">
+      <PageHeader title="Return Assets" subtitle="Record returned and missing quantities — inventory updates automatically">
         <Link to="/rentals" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">← Rentals</Link>
       </PageHeader>
 
@@ -181,10 +189,41 @@ export default function ReturnPage() {
                 <span className="text-slate-500">Balance</span><span className="font-semibold tabular-nums">{inr(rental.balanceAmount)}</span>
               </div>
             </div>
-            {currentOverdue > 0 && remainingTotal > 0 && (
-              <div className="mt-3 rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">
-                ⚠️ Overdue by <b>{currentOverdue} day{currentOverdue > 1 ? 's' : ''}</b> — current overdue charge {inr(rental.overdueCharge)}. Overdue charge only applies to un-returned quantity and will drop once everything is returned.
+          </section>
+
+          {/* Overdue charge section */}
+          <section className={`rounded-xl border p-5 shadow-sm ${overdueDays > 0 ? 'border-rose-200 bg-rose-50/60' : 'border-emerald-200 bg-emerald-50/60'}`}>
+            <h2 className={`mb-3 text-sm font-semibold ${overdueDays > 0 ? 'text-rose-800' : 'text-emerald-800'}`}>
+              {overdueDays > 0 ? `⚠️ Overdue Charge — ${overdueDays} day${overdueDays > 1 ? 's' : ''} overdue` : 'Overdue Charge — returned on time'}
+            </h2>
+            {overdueDays > 0 ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                  <div className="rounded-lg bg-white/70 px-3 py-2">
+                    <p className="text-xs text-slate-500">Due Date</p>
+                    <p className="font-semibold">{fmtDate(rental.dueDate)}</p>
+                  </div>
+                  <div className="rounded-lg bg-white/70 px-3 py-2">
+                    <p className="text-xs text-slate-500">Return Date</p>
+                    <p className="font-semibold">{fmtDate(new Date())}</p>
+                  </div>
+                  <div className="rounded-lg bg-white/70 px-3 py-2">
+                    <p className="text-xs text-slate-500">Overdue Days</p>
+                    <p className="font-semibold text-rose-700">{overdueDays}</p>
+                  </div>
+                  <div className="rounded-lg bg-white/70 px-3 py-2">
+                    <p className="text-xs text-slate-500">Already Charged</p>
+                    <p className="font-semibold tabular-nums">{inr(rental.overdueCharge)}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-600">
+                  Rate per unit per overdue day — {overduePreview > 0
+                    ? <span className="font-semibold text-rose-700">this return adds ≈ {inr(overduePreview)}</span>
+                    : 'enter quantities below to preview the charge for this return'}. The overdue charge is added to the final bill and appears on the invoice PDF.
+                </p>
               </div>
+            ) : (
+              <p className="text-sm text-emerald-700">Returned on or before the due date — overdue charge ₹0.</p>
             )}
           </section>
 
@@ -208,22 +247,22 @@ export default function ReturnPage() {
                         <span>Remaining: <b className="text-rose-600">{num(l.remaining)}</b></span>
                       </div>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-5">
+                    <div className="grid gap-3 sm:grid-cols-3">
                       <Field label={`Return (${l.asset?.unit})`}>
                         <TextInput type="number" min="0" value={l.returned} onChange={(e) => setLine(idx, { returned: e.target.value })} placeholder="0" />
                       </Field>
-                      <Field label={`Damaged (${l.asset?.unit})`}>
-                        <TextInput type="number" min="0" value={l.damaged} onChange={(e) => setLine(idx, { damaged: e.target.value })} placeholder="0" />
-                      </Field>
-                      <Field label={`Missing (${l.asset?.unit})`}>
+                      <Field label={`Missing Piece (${l.asset?.unit})`} hint="Not restocked and not charged — recorded for the report">
                         <TextInput type="number" min="0" value={l.missing} onChange={(e) => setLine(idx, { missing: e.target.value })} placeholder="0" />
                       </Field>
-                      <Field label="Damage Charge (₹)" hint="Suggested: qty × rate">
-                        <TextInput type="number" min="0" step="0.01" value={l.damageCharge} onChange={(e) => setLine(idx, { damageCharge: e.target.value })} placeholder={suggestedCharge(l.damaged, l.rate) ? String(suggestedCharge(l.damaged, l.rate)) : '0.00'} />
-                      </Field>
-                      <Field label="Missing Charge (₹)" hint="Suggested: qty × rate">
-                        <TextInput type="number" min="0" step="0.01" value={l.missingCharge} onChange={(e) => setLine(idx, { missingCharge: e.target.value })} placeholder={suggestedCharge(l.missing, l.rate) ? String(suggestedCharge(l.missing, l.rate)) : '0.00'} />
-                      </Field>
+                      {overdueDays > 0 && (
+                        <Field label={`Overdue Charge (${l.asset?.unit})`} hint="Qty × rate × overdue days">
+                          <TextInput
+                            type="text"
+                            readOnly
+                            value={inr(((Number(l.returned) || 0) + (Number(l.missing) || 0)) * Number(l.rate || 0) * overdueDays)}
+                          />
+                        </Field>
+                      )}
                     </div>
                     {l.error && <p className="mt-1 text-xs font-medium text-rose-600">{l.error}</p>}
                   </div>
@@ -233,11 +272,16 @@ export default function ReturnPage() {
           </section>
 
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <Field label="Return Notes">
-              <TextInput value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Site cleared, 2 plates damaged" />
-            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Return Notes">
+                <TextInput value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Site cleared, all materials counted" />
+              </Field>
+              <Field label="Missing Piece Details" hint="Describe which pieces are missing, e.g. '12 couplers, 5 base jacks — site supervisor informed'">
+                <TextInput value={missingDetails} onChange={(e) => setMissingDetails(e.target.value)} placeholder="e.g. 10 clamps not found at site" />
+              </Field>
+            </div>
             <p className="mt-3 text-xs text-slate-400">
-              Only good returns are added back to available inventory — damaged and missing quantities are charged but never restocked.
+              Only good returns are added back to available inventory — missing pieces are recorded (never restocked) and shown on the return summary, invoice and report.
             </p>
             <div className="mt-4 flex justify-end gap-3">
               <SecondaryButton type="button" onClick={() => navigate(routeId ? `/rentals/${rentalId}` : -1)}>Cancel</SecondaryButton>

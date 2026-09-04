@@ -44,7 +44,12 @@ async function processReturn(rentalId, body) {
 
     const returnDate = todayStart();
     const createdReturn = await tx.return.create({
-      data: { rentalId: id, returnDate, notes: optionalString(body.notes) },
+      data: {
+        rentalId: id,
+        returnDate,
+        notes: optionalString(body.notes),
+        missingDetails: optionalString(body.missingDetails),
+      },
     });
 
     let damageChargeTotal = 0;
@@ -71,13 +76,15 @@ async function processReturn(rentalId, body) {
         );
       }
 
-      // Suggested charges = quantity × rate, but the user can supply their own.
+      // Suggested damage charge = quantity × rate, but the user can supply their own.
       const rate = toNum(rentalItem.rentalRate);
       const damageCharge = raw.damageCharge === undefined || raw.damageCharge === null || raw.damageCharge === ''
         ? round2(damagedQuantity * rate)
         : asNonNegativeNumber(raw.damageCharge, 'Damage charge');
+      // Missing pieces are NOT charged automatically — they are recorded for
+      // reporting only. An explicit charge is respected if supplied by the client.
       const missingCharge = raw.missingCharge === undefined || raw.missingCharge === null || raw.missingCharge === ''
-        ? round2(missingQuantity * rate)
+        ? 0
         : asNonNegativeNumber(raw.missingCharge, 'Missing charge');
 
       await tx.returnItem.create({

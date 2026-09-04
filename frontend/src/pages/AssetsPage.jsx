@@ -104,6 +104,20 @@ export default function AssetsPage() {
   };
 
   const remove = async (asset) => {
+    const rentalCount = asset._count?.rentalItems || 0;
+    // Assets with rental history cannot be deleted — rentals are permanent
+    // audit records. Explain why instead of firing a request that must fail.
+    if (rentalCount > 0) {
+      await confirm({
+        title: 'Cannot delete this asset',
+        message: `"${asset.name}" (${asset.assetCode}) is linked to ${rentalCount} rental record${rentalCount > 1 ? 's' : ''}.
+\nRentals are permanent records kept for audit and reporting, so an asset with rental history cannot be deleted — this protects your historical invoices from breaking.`,
+        confirmText: 'Got it',
+        cancelText: 'Close',
+        danger: false,
+      });
+      return;
+    }
     const ok = await confirm({
       title: 'Delete asset?',
       message: `Delete "${asset.name}" (${asset.assetCode})? This cannot be undone.`,
@@ -112,7 +126,7 @@ export default function AssetsPage() {
     if (!ok) return;
     try {
       await client.delete(`/assets/${asset.id}`);
-      toast.success('Asset deleted');
+      toast.success(`Asset "${asset.name}" deleted`);
       refetch();
     } catch (err) {
       toast.error(err.message);
@@ -193,7 +207,13 @@ export default function AssetsPage() {
                       <div className="flex justify-end gap-1">
                         <button onClick={() => setViewing(a)} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100">View</button>
                         <button onClick={() => openEdit(a)} className="rounded-md px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50">Edit</button>
-                        <button onClick={() => remove(a)} className="rounded-md px-2 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50">Delete</button>
+                        <button
+                          onClick={() => remove(a)}
+                          title={a._count?.rentalItems > 0 ? 'Has rental history — cannot be deleted' : 'Delete asset'}
+                          className="rounded-md px-2 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                        >
+                          Delete
+                        </button>
                       </div>
                     </td>
                   </tr>

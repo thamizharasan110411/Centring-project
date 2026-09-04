@@ -22,18 +22,31 @@ body {
   border-radius: 4px;
 }
 
-/* Print: only show the invoice area */
+/* Print: only show the invoice area, as a professional A4 document */
 @media print {
+  @page {
+    size: A4;
+    margin: 10mm 12mm;
+  }
+
   body {
     background: white !important;
   }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   body * {
     visibility: hidden;
   }
+
   #invoice-print,
   #invoice-print * {
     visibility: visible;
   }
+
   #invoice-print {
     position: absolute;
     left: 0;
@@ -43,7 +56,22 @@ body {
     border: none !important;
     margin: 0 !important;
     padding: 0 !important;
+    font-size: 12px;
   }
+
+  /* Keep tables/rows/panels from splitting across pages */
+  #invoice-print table {
+    page-break-inside: auto;
+  }
+  #invoice-print tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  #invoice-print .avoid-break {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
   .no-print {
     display: none !important;
   }

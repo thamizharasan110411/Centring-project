@@ -163,11 +163,12 @@ model RentalItem {
 }
 
 model Return {
-  id         Int      @id @default(autoincrement())
-  rentalId   Int
-  returnDate DateTime @default(now())
-  notes      String?
-  createdAt  DateTime @default(now())
+  id             Int      @id @default(autoincrement())
+  rentalId       Int
+  returnDate     DateTime @default(now())
+  notes          String?
+  missingDetails String?
+  createdAt      DateTime @default(now())
 
   rental Rental       @relation(fields: [rentalId], references: [id], onDelete: Cascade)
   items   ReturnItem[]

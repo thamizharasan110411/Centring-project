@@ -213,10 +213,10 @@ async function main() {
   check('rental still OVERDUE (2 remaining)', ret1.data.rental.status === 'OVERDUE', ret1.data.rental.status);
   check('remaining qty = 2', ret1.data.rental.items.find((i) => i.id === odItem.id).remainingQuantity === 2);
   check('damage charge added (100)', num(ret1.data.rental.damageCharge) === 100, `got ${ret1.data.rental.damageCharge}`);
-  check('missing charge added (150)', num(ret1.data.rental.missingCharge) === 150, `got ${ret1.data.rental.missingCharge}`);
-  // overdue now applies to remaining 2 only: 2×10×4 = 80
-  check('overdue charge drops to 80 (2 remaining)', num(ret1.data.rental.overdueCharge) === 80, `got ${ret1.data.rental.overdueCharge}`);
-  check('grand = 600+80+100+150 = 930', num(ret1.data.rental.grandTotal) === 930, `got ${ret1.data.rental.grandTotal}`);
+  check('missing charge added (150, explicit)', num(ret1.data.rental.missingCharge) === 150, `got ${ret1.data.rental.missingCharge}`);
+  // overdue: snapshot for the 8 returned late (8×10×4=320) + live accrual on the 2 still out (2×10×4=80)
+  check('overdue charge = 320 snapshot + 80 remaining = 400', num(ret1.data.rental.overdueCharge) === 400, `got ${ret1.data.rental.overdueCharge}`);
+  check('grand = 600+400+100+150 = 1250', num(ret1.data.rental.grandTotal) === 1250, `got ${ret1.data.rental.grandTotal}`);
 
   // return more than remaining -> rejected
   const overReturn = await api('POST', `/rentals/${odRental.id}/return`, {
@@ -230,10 +230,36 @@ async function main() {
   });
   check('final return accepted', ret2.ok, ret2.error);
   check('status RETURNED after full return', ret2.data.rental.status === 'RETURNED', ret2.data.rental.status);
-  check('overdue charge now 0 (all returned)', num(ret2.data.rental.overdueCharge) === 0, `got ${ret2.data.rental.overdueCharge}`);
+  // snapshot sticks to the final bill: 8×10×4 + 2×10×4 = 400
+  check('overdue charge stays 400 on final bill (snapshot)', num(ret2.data.rental.overdueCharge) === 400, `got ${ret2.data.rental.overdueCharge}`);
   const steelAvailFinal = (await api('GET', `/assets/${steel.id}`)).data.availableQuantity;
   check('inventory +2 more', num(steelAvailFinal) === num(steelAvailAfterRet) + 2,
     `expected ${num(steelAvailAfterRet) + 2}, got ${steelAvailFinal}`);
+
+  // ---------------------------------------- missing piece: no auto charge
+  console.log('\n5b. Missing piece — recorded but NOT charged automatically');
+  const green = customers.data.find((c) => c.name === 'Green Valley Developers');
+  check('green valley customer found', Boolean(green));
+  const missRental = await api('POST', '/rentals', {
+    customerId: green.id,
+    rentalDate: toDateInput(addDays(-10)),
+    dueDate: toDateInput(addDays(-4)),
+    items: [{ assetId: steel.id, quantity: 3, days: 6 }],
+  });
+  check('missing-test rental created (OVERDUE)', missRental.ok, missRental.error);
+  const mItem = missRental.data.items.find((i) => i.assetId === steel.id);
+  const missRet = await api('POST', `/rentals/${missRental.data.id}/return`, {
+    missingDetails: '3 plates not found at site — site supervisor informed',
+    items: [{ rentalItemId: mItem.id, missingQuantity: 3 }],
+  });
+  check('missing-only return accepted', missRet.ok, missRet.error);
+  check('missing charge is 0 (never auto-charged)', num(missRet.data.rental.missingCharge) === 0, `got ${missRet.data.rental.missingCharge}`);
+  check('missing details stored on return record', missRet.data.return?.missingDetails === '3 plates not found at site — site supervisor informed', JSON.stringify(missRet.data.return));
+  check('rental RETURNED (3 of 3 missing)', missRet.data.rental.status === 'RETURNED', missRet.data.rental.status);
+  check('overdue snapshot on final bill = 3×10×4 = 120', num(missRet.data.rental.overdueCharge) === 120, `got ${missRet.data.rental.overdueCharge}`);
+  check('grand total = 180 + 120 overdue = 300', num(missRet.data.rental.grandTotal) === 300, `got ${missRet.data.rental.grandTotal}`);
+  const missInv = (await api('GET', `/invoices/${missRet.data.rental.invoice.id}`)).data;
+  check('invoice carries the overdue charge too', num(missInv.overdueCharge) === 120, `got ${missInv.overdueCharge}`);
 
   // ---------------------------------------------------------------- payment
   console.log('\n6. Payments & invoice status');
@@ -302,6 +328,20 @@ async function main() {
     custDetail.data.stats.totalRentals === seedRentalsForCust + 2,
     `got ${custDetail.data.stats?.totalRentals}, expected ${seedRentalsForCust + 2}`);
   check('customer outstanding matches rental balances', true);
+
+  // ---------------------------------------------------------------- asset delete
+  console.log('\n9. Asset delete');
+  const fresh = await api('POST', '/assets', {
+    name: 'Temp Delete Me', category: 'Test', unit: 'Piece', totalQuantity: 5, rentalRate: 2,
+  });
+  check('temp asset created', fresh.ok, fresh.error);
+  const del = await api('DELETE', `/assets/${fresh.data.id}`);
+  check('unused asset deleted', del.ok && del.data?.deleted === true, del.error);
+  const gone = await api('GET', `/assets/${fresh.data.id}`);
+  check('deleted asset actually gone (404)', !gone.ok && gone.status === 404, String(gone.status));
+  const usedDel = await api('DELETE', `/assets/${steel.id}`);
+  check('asset with rental history blocked with clear message (409)',
+    !usedDel.ok && usedDel.status === 409 && /rental history/i.test(usedDel.error), usedDel.error);
 
   console.log(`\n${'='.repeat(50)}`);
   console.log(`Results: ${passed} passed, ${failed} failed\n`);

@@ -113,16 +113,25 @@ async function updateAsset(id, body) {
 
 async function deleteAsset(id) {
   const assetId = asPositiveInt(id, 'Asset id');
-  const asset = await prisma.asset.findUnique({
-    where: { id: assetId },
-    include: { _count: { select: { rentalItems: true } } },
-  });
+  const asset = await prisma.asset.findUnique({ where: { id: assetId } });
   if (!asset) throw new ApiError(404, 'Asset not found');
+
+  const history = await prisma.rentalItem.findMany({
+    where: { assetId },
+    select: { rental: { select: { rentalNumber: true, status: true } } },
+    take: 6,
+    orderBy: { id: 'desc' },
+  });
   assert(
-    asset._count.rentalItems === 0,
-    'Cannot delete an asset that has rental history.',
+    history.length === 0,
+    history.length === 1
+      ? `Cannot delete "${asset.name}" — it is linked to rental ${history[0].rental.rentalNumber} (${history[0].rental.status}). Rentals are permanent records, so assets with rental history are kept for audit and reporting.`
+      : `Cannot delete "${asset.name}" — it is linked to ${history.length}+ rentals (${history.map((h) => h.rental.rentalNumber).join(', ')}). Rentals are permanent records, so assets with rental history are kept for audit and reporting.`,
     409
   );
+
+  // Small window between the check and the delete — if a rental sneaks in,
+  // Prisma raises P2003 which the error middleware maps to a clean 409.
   await prisma.asset.delete({ where: { id: assetId } });
   return { id: assetId, deleted: true };
 }

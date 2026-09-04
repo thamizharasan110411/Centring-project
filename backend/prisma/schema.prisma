@@ -168,6 +168,9 @@ model Return {
   returnDate     DateTime @default(now())
   notes          String?
   missingDetails String?
+  damageDetails  String?
+  overdueDays    Int      @default(0)
+  overdueCharge  Decimal  @default(0) @db.Decimal(10, 2)
   createdAt      DateTime @default(now())
 
   rental Rental       @relation(fields: [rentalId], references: [id], onDelete: Cascade)

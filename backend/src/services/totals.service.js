@@ -16,40 +16,12 @@ function remainingQty(item) {
 }
 
 /**
- * Overdue charge for a rental as of `today`.
- *
- * Two parts, both idempotent (recomputing never double-charges):
- *  1. Snapshot — every quantity already recorded in a return gets charged its
- *     rate for the days it was actually out (return date − due date). This is
- *     what makes the overdue charge stick to the FINAL bill even after a late
- *     full return.
- *  2. Live — quantity still out with the customer accrues up to `today`.
+ * Overdue charge is MANUAL: it is set by the user on the return form (or the
+ * rental edit page) and stored on the rental — it is never auto-calculated.
+ * `extraDays` is still derived from the dates for status/display purposes only.
  */
-function computeOverdueForRental(rental, items, today = todayStart()) {
-  const extraDays = Math.max(0, dayDiff(rental.dueDate, today));
-  let overdueCharge = 0;
-
-  const rateById = new Map(items.map((it) => [it.id, toNum(it.rentalRate)]));
-  for (const ret of rental.returns || []) {
-    const retExtra = dayDiff(rental.dueDate, ret.returnDate);
-    if (retExtra <= 0) continue;
-    for (const ri of ret.items || []) {
-      const qty = toNum(ri.returnedQuantity) + toNum(ri.damagedQuantity) + toNum(ri.missingQuantity);
-      if (qty > 0) {
-        overdueCharge += qty * (rateById.get(ri.rentalItemId) || 0) * retExtra;
-      }
-    }
-  }
-
-  if (extraDays > 0) {
-    for (const item of items) {
-      const rem = remainingQty(item);
-      if (rem > 0) {
-        overdueCharge += rem * toNum(item.rentalRate) * extraDays;
-      }
-    }
-  }
-  return { extraDays, overdueCharge: round2(overdueCharge) };
+function extraDaysFor(rental, today = todayStart()) {
+  return Math.max(0, dayDiff(rental.dueDate, today));
 }
 
 function computeGrandTotal(r) {
@@ -94,14 +66,16 @@ async function recomputeRentalTotals(tx, rentalId) {
   const anyReturned = rental.items.some(
     (it) => toNum(it.returnedQuantity) + toNum(it.damagedQuantity) + toNum(it.missingQuantity) > 0
   );
-  const { extraDays, overdueCharge } = computeOverdueForRental(rental, rental.items, today);
+  const extraDays = extraDaysFor(rental, today);
+  // Manual: keep whatever charge the user set (return form / rental edit).
+  const overdueCharge = toNum(rental.overdueCharge);
   const paid = rental.payments.reduce((sum, p) => sum + toNum(p.amount), 0);
 
   let status = rental.status;
   if (status !== 'CLOSED') {
     if (allReturned) {
       status = 'RETURNED';
-      if (round2(computeGrandTotal({ ...rental, overdueCharge }) - paid) <= 0) status = 'CLOSED';
+      if (round2(computeGrandTotal(rental) - paid) <= 0) status = 'CLOSED';
     } else if (extraDays > 0) {
       status = 'OVERDUE';
     } else if (anyReturned) {
@@ -111,11 +85,10 @@ async function recomputeRentalTotals(tx, rentalId) {
     }
   }
 
-  const grandTotal = computeGrandTotal({ ...rental, overdueCharge });
+  const grandTotal = computeGrandTotal(rental);
   const balance = round2(grandTotal - paid);
 
   const rentalUpdate = {
-    overdueCharge: round2(overdueCharge),
     grandTotal,
     balanceAmount: balance,
     status,
@@ -129,7 +102,7 @@ async function recomputeRentalTotals(tx, rentalId) {
       where: { id: rental.invoice.id },
       data: {
         subtotal: rental.subtotal,
-        overdueCharge: round2(overdueCharge),
+        overdueCharge: overdueCharge,
         damageCharge: rental.damageCharge,
         missingCharge: rental.missingCharge,
         transportCharge: rental.transportCharge,
@@ -167,21 +140,10 @@ async function refreshAllOverdue(client) {
 function enrichRental(rental) {
   const today = todayStart();
   const enriched = { ...rental };
-  const isOpen = OPEN_STATUSES.includes(rental.status);
-  if (isOpen) {
-    // Live picture for open rentals (already includes snapshots from past returns).
-    const { extraDays, overdueCharge } = computeOverdueForRental(
-      rental,
-      rental.items || [],
-      today
-    );
-    enriched.overdueDays = extraDays;
-    enriched.overdueCharge = overdueCharge;
-  } else {
-    // Returned/closed rentals keep the snapshot computed at return time.
-    const refDate = rental.returnDate || today;
-    enriched.overdueDays = Math.max(0, dayDiff(rental.dueDate, refDate));
-  }
+  // Overdue days is display-only (drives the OVERDUE banner/status). The
+  // overdue CHARGE is manual and stays exactly as stored on the rental.
+  const refDate = rental.returnDate || today;
+  enriched.overdueDays = Math.max(0, dayDiff(rental.dueDate, refDate));
   enriched.items = (rental.items || []).map((item) => ({
     ...item,
     remainingQuantity: remainingQty(item),
@@ -194,7 +156,6 @@ function enrichRental(rental) {
 module.exports = {
   OPEN_STATUSES,
   remainingQty,
-  computeOverdueForRental,
   computeGrandTotal,
   invoiceStatusFor,
   recomputeRentalTotals,

@@ -5,6 +5,7 @@ const { addDays, todayStart } = require('../src/utils/dates');
 const rentalService = require('../src/services/rental.service');
 const returnService = require('../src/services/return.service');
 const paymentService = require('../src/services/payment.service');
+const { recomputeRentalTotals } = require('../src/services/totals.service');
 
 const today = todayStart();
 
@@ -171,6 +172,14 @@ async function main() {
     console.log(`  Rental ${rental.rentalNumber}  ${def.customer}  -> ${rental.status}  (${def.label})`);
   }
 
+  // Overdue charge is MANUAL — set it explicitly here (as a user would) for the
+  // seeded OVERDUE rental (RNT-0002: 500×3×6 + 600×2×6 = 16200).
+  await prisma.rental.update({
+    where: { id: rentals[1].id },
+    data: { overdueCharge: 16200 },
+  });
+  await recomputeRentalTotals(prisma, rentals[1].id);
+
   // 4) Returns
   // R3 (Green Valley): partial return with damage + missing
   const r3 = rentals[2];
@@ -183,12 +192,16 @@ async function main() {
   });
   console.log(`  Return  on ${r3.rentalNumber}: 30 good, 3 damaged, 2 missing (Steel Plate)`);
 
-  // R4 (Apex): full return with damage + missing
+  // R4 (Apex): full return with damage + missing + manual overdue charge
+  // (returned 15 days after the due date — charge set manually)
   const r4 = rentals[3];
   const r4Batten = r4.items.find((i) => i.asset.name === 'Wooden Batten');
   const r4Gi = r4.items.find((i) => i.asset.name === 'GI Pipe');
   await returnService.processReturn(r4.id, {
     notes: 'Project completed - full return',
+    damageDetails: '5 wooden battens cracked at site',
+    overdueDays: 15,
+    overdueCharge: 1000,
     items: [
       { rentalItemId: r4Batten.id, returnedQuantity: 90, damagedQuantity: 5, missingQuantity: 5, damageCharge: 20, missingCharge: 20 },
       { rentalItemId: r4Gi.id, returnedQuantity: 300, damagedQuantity: 0, missingQuantity: 0 },

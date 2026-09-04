@@ -42,6 +42,16 @@ async function processReturn(rentalId, body) {
       throw new ApiError(400, 'At least one return line is required.');
     }
 
+    // Overdue charge is MANUAL: whatever the user enters on the return form.
+    // It is recorded on this return (idempotent — each return is created once)
+    // and added to the rental bill. No automatic calculation.
+    const manualOverdueDays = body.overdueDays === undefined || body.overdueDays === null || body.overdueDays === ''
+      ? 0
+      : asNonNegativeInt(body.overdueDays, 'Overdue days');
+    const manualOverdueCharge = body.overdueCharge === undefined || body.overdueCharge === null || body.overdueCharge === ''
+      ? 0
+      : asNonNegativeNumber(body.overdueCharge, 'Overdue charge');
+
     const returnDate = todayStart();
     const createdReturn = await tx.return.create({
       data: {
@@ -49,6 +59,9 @@ async function processReturn(rentalId, body) {
         returnDate,
         notes: optionalString(body.notes),
         missingDetails: optionalString(body.missingDetails),
+        damageDetails: optionalString(body.damageDetails),
+        overdueDays: manualOverdueDays,
+        overdueCharge: round2(manualOverdueCharge),
       },
     });
 
@@ -125,6 +138,7 @@ async function processReturn(rentalId, body) {
       data: {
         damageCharge: { increment: round2(damageChargeTotal) },
         missingCharge: { increment: round2(missingChargeTotal) },
+        overdueCharge: { increment: round2(manualOverdueCharge) },
         returnDate: rental.items.every((it) => remainingQty(it) <= 0) ? returnDate : null,
       },
     });

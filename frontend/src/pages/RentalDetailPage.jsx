@@ -47,6 +47,7 @@ export default function RentalDetailPage() {
       otherCharge: rental.otherCharge,
       discount: rental.discount,
       securityDeposit: rental.securityDeposit,
+      overdueCharge: rental.overdueCharge,
       notes: rental.notes || '',
     });
     setEditOpen(true);
@@ -63,6 +64,7 @@ export default function RentalDetailPage() {
         otherCharge: Number(editForm.otherCharge) || 0,
         discount: Number(editForm.discount) || 0,
         securityDeposit: Number(editForm.securityDeposit) || 0,
+        overdueCharge: Number(editForm.overdueCharge) || 0,
         notes: editForm.notes || null,
       });
       toast.success(`${res.data.rentalNumber} updated`);
@@ -226,9 +228,19 @@ export default function RentalDetailPage() {
                           {Number(ri.missingCharge) > 0 && ` (+${inr(ri.missingCharge)})`}
                         </p>
                       ))}
+                      {Number(ret.overdueCharge) > 0 && (
+                        <p className="mt-1 rounded bg-rose-50 px-2 py-1 font-medium text-rose-700">
+                          Overdue: {num(ret.overdueDays)} day{num(ret.overdueDays) === 1 ? '' : 's'} · +{inr(ret.overdueCharge)} added to the bill
+                        </p>
+                      )}
                       {ret.missingDetails && (
                         <p className="mt-1 rounded bg-amber-50 px-2 py-1 font-medium text-amber-800">
                           Missing pieces: {ret.missingDetails}
+                        </p>
+                      )}
+                      {ret.damageDetails && (
+                        <p className="mt-1 rounded bg-orange-50 px-2 py-1 font-medium text-orange-800">
+                          Damage: {ret.damageDetails}
                         </p>
                       )}
                     </div>
@@ -345,6 +357,9 @@ export default function RentalDetailPage() {
               </Field>
               <Field label="Security Deposit (₹)">
                 <TextInput type="number" min="0" step="0.01" value={editForm.securityDeposit} onChange={(e) => setEditForm({ ...editForm, securityDeposit: e.target.value })} />
+              </Field>
+              <Field label="Overdue Charge (₹)" hint="Manual — set it yourself, nothing is auto-calculated">
+                <TextInput type="number" min="0" step="0.01" value={editForm.overdueCharge} onChange={(e) => setEditForm({ ...editForm, overdueCharge: e.target.value })} />
               </Field>
               <div className="sm:col-span-2">
                 <Field label="Notes">

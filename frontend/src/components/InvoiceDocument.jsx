@@ -23,6 +23,7 @@ export default function InvoiceDocument({ invoice }) {
   const returns = rental.returns || [];
   const paid = Number(invoice.paidAmount || 0);
   const overdueDays =
+    returns.reduce((s, r) => s + Number(r.overdueDays || 0), 0) ||
     Number(rental.overdueDays) ||
     (rental.returnDate ? Math.max(0, Math.round((new Date(rental.returnDate) - new Date(rental.dueDate)) / 86400000)) : 0);
   const hasOverdue = Number(invoice.overdueCharge) > 0;
@@ -127,15 +128,26 @@ export default function InvoiceDocument({ invoice }) {
                   {(ret.items || []).map((ri) => (
                     <p key={ri.id}>
                       {[ri.returnedQuantity > 0 ? `${num(ri.returnedQuantity)} returned` : null,
+                        ri.damagedQuantity > 0 ? `${num(ri.damagedQuantity)} damaged` : null,
                         ri.missingQuantity > 0 ? `${num(ri.missingQuantity)} missing` : null]
                         .filter(Boolean).join(' · ') || '—'}
-                      {Number(ri.damageCharge) > 0 && <> · damage {inr(ri.damageCharge)}</>}
+                      {Number(ri.damageCharge) > 0 && <> · damage charge {inr(ri.damageCharge)}</>}
                       {Number(ri.missingCharge) > 0 && <> · missing charge {inr(ri.missingCharge)}</>}
                     </p>
                   ))}
+                  {Number(ret.overdueCharge) > 0 && (
+                    <p className="mt-0.5 rounded bg-white/70 px-2 py-1 font-medium text-rose-700">
+                      Overdue charge +{inr(ret.overdueCharge)} {num(ret.overdueDays) > 0 ? `(${num(ret.overdueDays)} day${num(ret.overdueDays) === 1 ? '' : 's'})` : ''}
+                    </p>
+                  )}
                   {ret.missingDetails && (
                     <p className="mt-0.5 rounded bg-white/70 px-2 py-1 italic text-amber-800">
                       Missing pieces: {ret.missingDetails}
+                    </p>
+                  )}
+                  {ret.damageDetails && (
+                    <p className="mt-0.5 rounded bg-white/70 px-2 py-1 italic text-orange-800">
+                      Damage: {ret.damageDetails}
                     </p>
                   )}
                   {ret.notes && <p className="text-slate-400 italic">Note: {ret.notes}</p>}
@@ -153,11 +165,11 @@ export default function InvoiceDocument({ invoice }) {
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3">
               <p className="text-xs font-bold uppercase tracking-wider text-rose-700">Overdue</p>
               <p className="mt-1 text-sm text-rose-700">
-                Returned {overdueDays} day{overdueDays > 1 ? 's' : ''} after due date ({fmtDate(rental.dueDate)}) — charged at the per-unit rate for the overdue period.
+                Overdue charge of <b>{inr(invoice.overdueCharge)}</b> applied — {overdueDays > 0 ? `${overdueDays} day${overdueDays > 1 ? 's' : ''} after the due date (${fmtDate(rental.dueDate)})` : 'as per the rental agreement'}.
               </p>
             </div>
           ) : (
-            <p className="text-xs text-slate-400">No overdue charge — returned on or before the due date.</p>
+            <p className="text-xs text-slate-400">No overdue charge recorded.</p>
           )}
         </div>
 
@@ -232,7 +244,8 @@ export default function InvoiceDocument({ invoice }) {
           <p className="text-xs font-bold uppercase tracking-wider text-slate-700">Terms & Conditions</p>
           <ul className="mt-2 list-disc space-y-1 pl-4 text-slate-500">
             <li>Materials are charged on a daily basis until the full quantity is returned to our yard.</li>
-            <li>Items returned after the due date are charged at the rental rate for each overdue day.</li>
+            <li>Overdue charges, if any, are applied as per the rental agreement and appear on the invoice.</li>
+            <li>Damaged items are charged at the agreed rate and are not restocked to inventory.</li>
             <li>Missing pieces are recorded on the return and are not restocked to inventory.</li>
             <li>Balance dues are payable within 7 days of the invoice date.</li>
             <li>Transport charges, if any, are payable by the customer.</li>

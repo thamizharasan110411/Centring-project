@@ -263,6 +263,7 @@ async function updateRental(id, body) {
         otherCharge: body.otherCharge !== undefined ? asNonNegativeNumber(body.otherCharge, 'Other charge') : rental.otherCharge,
         discount: body.discount !== undefined ? asNonNegativeNumber(body.discount, 'Discount') : rental.discount,
         securityDeposit: body.securityDeposit !== undefined ? asNonNegativeNumber(body.securityDeposit, 'Security deposit') : rental.securityDeposit,
+        overdueCharge: body.overdueCharge !== undefined ? asNonNegativeNumber(body.overdueCharge, 'Overdue charge') : rental.overdueCharge,
         notes: body.notes !== undefined ? optionalString(body.notes) : rental.notes,
       },
     });

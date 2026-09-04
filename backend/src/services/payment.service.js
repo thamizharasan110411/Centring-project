@@ -94,7 +94,7 @@ async function recordPayment(body) {
     });
     await recomputeRentalTotals(tx, rentalId);
     return payment;
-  });
+  }, { timeout: 30000 });
 
   const updatedRental = await prisma.rental.findUnique({
     where: { id: rentalId },

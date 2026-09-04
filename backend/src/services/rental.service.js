@@ -209,7 +209,7 @@ async function createRental(body) {
       // Now that rental + invoice + payment exist, recompute totals/status.
       await recomputeRentalTotals(tx, rental.id);
       return tx.rental.findUnique({ where: { id: rental.id }, include: RENTAL_INCLUDE });
-    })
+    }, { timeout: 30000 })
   ).then(enrichRental);
 }
 
@@ -268,7 +268,7 @@ async function updateRental(id, body) {
     });
     await recomputeRentalTotals(tx, rentalId);
     return tx.rental.findUnique({ where: { id: rentalId }, include: RENTAL_INCLUDE });
-  }).then(enrichRental);
+  }, { timeout: 30000 }).then(enrichRental);
 }
 
 /** Mark a fully-returned, fully-paid rental as CLOSED. */

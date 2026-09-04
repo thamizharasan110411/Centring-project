@@ -126,7 +126,7 @@ async function processReturn(rentalId, body) {
 
     const updated = await tx.rental.findUnique({ where: { id }, include: RENTAL_INCLUDE });
     return { return: createdReturn, rental: enrichRental(updated) };
-  });
+  }, { timeout: 30000 });
 }
 
 module.exports = { processReturn };

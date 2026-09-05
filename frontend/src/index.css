@@ -22,7 +22,12 @@ body {
   border-radius: 4px;
 }
 
-/* Print: only show the invoice area, as a professional A4 document */
+/* Monthly report document is hidden on screen; shown only when printing. */
+#monthly-print {
+  display: none;
+}
+
+/* Print: only show the invoice / report area, as a professional A4 document */
 @media print {
   @page {
     size: A4;
@@ -43,11 +48,14 @@ body {
   }
 
   #invoice-print,
-  #invoice-print * {
+  #invoice-print *,
+  #monthly-print,
+  #monthly-print * {
     visibility: visible;
   }
 
-  #invoice-print {
+  #invoice-print,
+  #monthly-print {
     position: absolute;
     left: 0;
     top: 0;
@@ -59,15 +67,22 @@ body {
     font-size: 12px;
   }
 
+  #monthly-print {
+    display: block;
+  }
+
   /* Keep tables/rows/panels from splitting across pages */
-  #invoice-print table {
+  #invoice-print table,
+  #monthly-print table {
     page-break-inside: auto;
   }
-  #invoice-print tr {
+  #invoice-print tr,
+  #monthly-print tr {
     page-break-inside: avoid;
     break-inside: avoid;
   }
-  #invoice-print .avoid-break {
+  #invoice-print .avoid-break,
+  #monthly-print .avoid-break {
     page-break-inside: avoid;
     break-inside: avoid;
   }

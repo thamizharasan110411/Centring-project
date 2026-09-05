@@ -26,10 +26,16 @@ const getCustomerReport = asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 });
 
+const getMonthlyReport = asyncHandler(async (req, res) => {
+  const data = await reportService.getMonthlyReport(req.query);
+  res.json({ success: true, data });
+});
+
 module.exports = {
   getDashboard,
   getRevenueReport,
   getRentalReport,
   getAssetReport,
   getCustomerReport,
+  getMonthlyReport,
 };

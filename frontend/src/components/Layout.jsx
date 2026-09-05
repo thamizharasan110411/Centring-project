@@ -20,8 +20,8 @@ function SidebarContent({ onNavigate }) {
       <div className="flex items-center gap-3 border-b border-slate-800 px-5 py-5">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-xl font-bold text-white">🏗️</div>
         <div>
-          <p className="text-sm font-bold leading-tight text-white">Centring Materials</p>
-          <p className="text-[11px] text-slate-400">Rental ERP</p>
+          <p className="text-sm font-bold leading-tight text-white">Eswari Enterprise</p>
+          <p className="text-[11px] text-slate-400">Construction Materials Rental</p>
         </div>
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
@@ -45,7 +45,7 @@ function SidebarContent({ onNavigate }) {
         ))}
       </nav>
       <div className="border-t border-slate-800 px-5 py-4 text-[11px] leading-relaxed text-slate-500">
-        Centering Material<br />Rental ERP v1.0
+        Eswari Enterprise<br />Construction Materials Rental · v1.0
       </div>
     </div>
   );
@@ -100,11 +100,11 @@ export default function Layout() {
               ☰
             </button>
             <h2 className="text-sm font-semibold text-slate-700 sm:text-base">
-              {current?.label || 'Centring Materials'}
+              {current?.label || 'Eswari Enterprise'}
             </h2>
           </div>
           <div className="flex items-center gap-2 text-sm text-slate-500">
-            <span className="hidden sm:inline">Centring Materials</span>
+            <span className="hidden sm:inline">Eswari Enterprise</span>
             <span className="hidden h-5 w-px bg-slate-200 sm:inline" />
             <span className="hidden items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 sm:flex">
               👤 {admin?.username || 'admin'}

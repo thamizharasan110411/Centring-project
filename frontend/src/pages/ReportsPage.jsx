@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 import { useFetch } from '../hooks/useFetch';
@@ -6,7 +6,8 @@ import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import StatusBadge from '../components/StatusBadge';
 import { Spinner, ErrorState, EmptyState } from '../components/Loading';
-import { RENTAL_STATUSES } from '../utils/constants';
+import MonthlyReportDocument from '../components/MonthlyReportDocument';
+import { RENTAL_STATUSES, BUSINESS } from '../utils/constants';
 import { inr, num, fmtDate, todayInput } from '../utils/format';
 
 const TABS = [
@@ -23,11 +24,47 @@ const RANGES = [
   { key: 'custom', label: 'Custom' },
 ];
 
+const METHOD_BADGE = {
+  CASH: 'bg-emerald-100 text-emerald-800 ring-emerald-200',
+  UPI: 'bg-indigo-100 text-indigo-800 ring-indigo-200',
+  BANK_TRANSFER: 'bg-sky-100 text-sky-800 ring-sky-200',
+  CARD: 'bg-amber-100 text-amber-800 ring-amber-200',
+};
+
+const METHOD_LABEL = {
+  CASH: 'Cash',
+  UPI: 'UPI',
+  BANK_TRANSFER: 'Bank Transfer',
+  CARD: 'Card',
+};
+
 export default function ReportsPage() {
   const [tab, setTab] = useState('revenue');
   const [range, setRange] = useState('month');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+
+  // Monthly business report state
+  const now = new Date();
+  const [reportMonth, setReportMonth] = useState(now.getMonth() + 1);
+  const [reportYear, setReportYear] = useState(now.getFullYear());
+  const [monthly, setMonthly] = useState(null);
+  const [monthlyError, setMonthlyError] = useState('');
+  const [printing, setPrinting] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setMonthlyError('');
+    client
+      .get('/reports/monthly', { params: { month: reportMonth, year: reportYear } })
+      .then((r) => {
+        if (alive) setMonthly(r.data);
+      })
+      .catch((err) => {
+        if (alive) setMonthlyError(err.message || 'Could not load the monthly report.');
+      });
+    return () => { alive = false; };
+  }, [reportMonth, reportYear]);
 
   const params = useMemo(() => {
     if (range === 'custom') return { range: undefined, from: from || undefined, to: to || undefined };
@@ -41,11 +78,82 @@ export default function ReportsPage() {
 
   const summary = data?.summary;
 
+  function downloadMonthlyPdf() {
+    if (!monthly) return;
+    setPrinting(true);
+    // Give React a tick to mount the hidden document, then print.
+    setTimeout(() => {
+      window.print();
+      setPrinting(false);
+    }, 150);
+  }
+
+  const ms = monthly?.summary || {};
+
   return (
     <div>
       <PageHeader title="Reports" subtitle="Business insights computed live from your data" />
 
-      {/* Tabs */}
+      {/* ============ Monthly business report (PDF) ============ */}
+      <div className="mb-6 rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-slate-800">📅 Monthly Business Report</h3>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Rentals, revenue, Cash &amp; UPI split, pending dues, overdue charges and returns — downloadable as a professional PDF.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={reportMonth}
+              onChange={(e) => setReportMonth(Number(e.target.value))}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium focus:border-indigo-500 focus:outline-none"
+            >
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={i + 1}>{new Date(2000, i, 1).toLocaleString('en-IN', { month: 'long' })}</option>
+              ))}
+            </select>
+            <select
+              value={reportYear}
+              onChange={(e) => setReportYear(Number(e.target.value))}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium focus:border-indigo-500 focus:outline-none"
+            >
+              {Array.from({ length: 6 }, (_, i) => now.getFullYear() - i).map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            <button
+              onClick={downloadMonthlyPdf}
+              disabled={!monthly || printing}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {printing ? 'Preparing…' : '⬇ Download PDF'}
+            </button>
+          </div>
+        </div>
+        {monthlyError && <p className="mt-3 text-xs font-medium text-rose-600">⚠️ {monthlyError}</p>}
+        {monthly && !monthlyError && (
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
+            {[
+              ['Rentals', num(ms.totalRentals)],
+              ['Revenue', inr(ms.totalRevenue)],
+              ['Cash', inr(ms.cashTotal)],
+              ['UPI', inr(ms.upiTotal)],
+              ['Pending', inr(ms.pendingAmount)],
+              ['Overdue', inr(ms.overdueCharges)],
+              ['Returns', `${num(ms.returnsProcessed)} (${num(ms.returnedUnits)} units)`],
+              ['Outstanding', num(ms.outstandingRentals)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-lg border border-slate-200 bg-white/80 px-3 py-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+                <p className="mt-0.5 truncate text-sm font-bold text-slate-800" title={String(value)}>{value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ============ Tab filter ============ */}
       <div className="mb-4 flex flex-wrap gap-2">
         {TABS.map((t) => (
           <button
@@ -60,7 +168,7 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {/* Date filter */}
+      {/* ============ Date filter ============ */}
       <div className="mb-6 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
         <div className="flex flex-wrap gap-2">
           {RANGES.map((r) => (
@@ -97,8 +205,12 @@ export default function ReportsPage() {
           {tab === 'revenue' && summary && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard label="Total Revenue" value={inr(summary.totalRevenue)} icon="💰" accent="emerald" />
-              <StatCard label="Payments Count" value={summary.paymentCount} icon="🧾" accent="indigo" />
-              <StatCard label="Paid (all time)" value={inr(summary.paidAmount)} icon="✅" accent="sky" />
+              <StatCard label="Cash Payment" value={inr(summary.cashTotal)} icon="💵" accent="amber" />
+              <StatCard label="UPI Payment" value={inr(summary.upiTotal)} icon="📱" accent="indigo" />
+              <StatCard label="Other Methods" value={inr(summary.otherTotal)} icon="🏦" accent="sky" />
+              <StatCard label="Total Payment" value={inr(summary.totalPayment)} icon="🧾" accent="slate" />
+              <StatCard label="Payments Count" value={summary.paymentCount} icon="🔢" accent="indigo" />
+              <StatCard label="Paid (all time)" value={inr(summary.paidAmount)} icon="✅" accent="emerald" />
               <StatCard label="Pending (all time)" value={inr(summary.pendingAmount)} icon="⏳" accent="amber" />
             </div>
           )}
@@ -120,7 +232,9 @@ export default function ReportsPage() {
             <ReportTable
               headers={['Date', 'Rental', 'Customer', 'Method', 'Amount']}
               rows={(data?.payments || []).map((p) => ({
-                cells: [fmtDate(p.paymentDate), <Link key={p.id} to={`/rentals/${p.rentalId}`} className="font-medium text-indigo-600">{p.rental?.rentalNumber}</Link>, p.rental?.customer?.name, p.paymentMethod.toLowerCase().replace('_', ' '), <span key="amt" className="font-semibold text-emerald-700">{inr(p.amount)}</span>],
+                cells: [fmtDate(p.paymentDate), <Link key={p.id} to={`/rentals/${p.rentalId}`} className="font-medium text-indigo-600">{p.rental?.rentalNumber}</Link>, p.rental?.customer?.name,
+                <span key="m" className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ${METHOD_BADGE[p.paymentMethod] || 'bg-slate-100 text-slate-700 ring-slate-200'}`}>{METHOD_LABEL[p.paymentMethod] || p.paymentMethod.toLowerCase().replace('_', ' ')}</span>,
+                <span key="amt" className="font-semibold text-emerald-700">{inr(p.amount)}</span>],
               }))}
               empty="No payments in this period"
             />
@@ -189,6 +303,9 @@ export default function ReportsPage() {
           )}
         </div>
       )}
+
+      {/* Hidden on screen — shown only when printing the monthly PDF */}
+      <MonthlyReportDocument report={monthly} />
     </div>
   );
 }

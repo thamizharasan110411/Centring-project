@@ -60,8 +60,13 @@ export const PAYMENT_METHOD_FILTERS = [
 ];
 
 export const BUSINESS = {
-  name: import.meta.env.VITE_BUSINESS_NAME || 'Centring Materials',
-  address: import.meta.env.VITE_BUSINESS_ADDRESS || 'Plot No. 12, Industrial Area, Hosur Road, Bengaluru - 560100',
-  phone: import.meta.env.VITE_BUSINESS_PHONE || '+91 98765 43210',
-  email: import.meta.env.VITE_BUSINESS_EMAIL || 'info@balajicentering.in',
+  name: import.meta.env.VITE_BUSINESS_NAME || 'Eswari Enterprise',
+  tagline:
+    import.meta.env.VITE_BUSINESS_TAGLINE ||
+    'We provide construction materials like boards, joists, beams, jockeys at low rent',
+  address:
+    import.meta.env.VITE_BUSINESS_ADDRESS ||
+    'No.3, Raju Gandhi Nagar, Karuvadikuppam, Puducherry - 605008',
+  phone: import.meta.env.VITE_BUSINESS_PHONE || '+91 98450 12345',
+  email: import.meta.env.VITE_BUSINESS_EMAIL || 'eswarienterprise@gmail.com',
 };

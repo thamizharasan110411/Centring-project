@@ -36,7 +36,7 @@ export default function InvoiceDocument({ invoice }) {
       <div className="flex flex-col gap-6 border-b-[3px] border-slate-800 pb-6 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-slate-900">{BUSINESS.name}</h1>
-          <p className="mt-1 text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700">Centering Material Rentals</p>
+          <p className="mt-1 max-w-md text-xs italic leading-relaxed text-slate-500">{BUSINESS.tagline}</p>
           <p className="mt-3 max-w-xs text-sm leading-relaxed text-slate-600">{BUSINESS.address}</p>
           <p className="mt-1 text-sm text-slate-600">
             Phone: <span className="font-medium text-slate-800">{BUSINESS.phone}</span>

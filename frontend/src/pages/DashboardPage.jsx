@@ -3,7 +3,7 @@ import client from '../api/client';
 import { useFetch } from '../hooks/useFetch';
 import StatCard from '../components/StatCard';
 import StatusBadge from '../components/StatusBadge';
-import { RENTAL_STATUSES, INVOICE_STATUSES } from '../utils/constants';
+import { RENTAL_STATUSES, INVOICE_STATUSES, BUSINESS } from '../utils/constants';
 import { inr, fmtDate, plural } from '../utils/format';
 import { Spinner, ErrorState } from '../components/Loading';
 import PageHeader from '../components/PageHeader';
@@ -22,7 +22,7 @@ export default function DashboardPage() {
     <div>
       <PageHeader
         title="Dashboard"
-        subtitle="Business overview — all figures come live from the database"
+        subtitle={`${BUSINESS.name} — business overview, all figures come live from the database`}
       >
         <Link to="/rentals/new" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
           + New Rental

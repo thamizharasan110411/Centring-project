@@ -1,7 +1,42 @@
 const prisma = require('../prisma');
+const ApiError = require('../utils/ApiError');
 const { toNum, round2 } = require('../utils/money');
-const { parseDateInput, todayStart, startOfWeek, startOfMonth } = require('../utils/dates');
+const { parseDateInput, todayStart, startOfWeek, startOfMonth, startOfDay } = require('../utils/dates');
 const { refreshAllOverdue, remainingQty } = require('./totals.service');
+
+const METHOD_CASH = 'CASH';
+const METHOD_UPI = 'UPI';
+
+/** Group an array of payments by method into a { method, total, count } breakdown. */
+function methodBreakdown(payments) {
+  const map = {};
+  for (const p of payments) {
+    const key = p.paymentMethod || 'OTHER';
+    if (!map[key]) map[key] = { method: key, total: 0, count: 0 };
+    map[key].total = round2(map[key].total + toNum(p.amount));
+    map[key].count += 1;
+  }
+  return Object.values(map).sort((a, b) => b.total - a.total);
+}
+
+/** Cash / UPI / other splits for a set of payments, all rounded. */
+function methodTotals(payments) {
+  const { cash, upi } = payments.reduce(
+    (acc, p) => {
+      if (p.paymentMethod === METHOD_CASH) acc.cash += toNum(p.amount);
+      else if (p.paymentMethod === METHOD_UPI) acc.upi += toNum(p.amount);
+      return acc;
+    },
+    { cash: 0, upi: 0 }
+  );
+  const total = round2(payments.reduce((s, p) => s + toNum(p.amount), 0));
+  return {
+    cashTotal: round2(cash),
+    upiTotal: round2(upi),
+    otherTotal: round2(total - round2(cash) - round2(upi)),
+    totalPayment: total,
+  };
+}
 
 /** Resolve a from/to date range from a filter key (today/week/month) or explicit dates. */
 function resolveRange({ range, from, to }) {
@@ -153,17 +188,23 @@ async function getRevenueReport({ range, from, to }) {
   ]);
 
   const totalRevenue = round2(payments.reduce((s, p) => s + toNum(p.amount), 0));
+  const method = methodTotals(payments);
   return {
     range,
     from: start,
     to: end,
     summary: {
       totalRevenue,
+      cashTotal: method.cashTotal,
+      upiTotal: method.upiTotal,
+      otherTotal: method.otherTotal,
+      totalPayment: method.totalPayment,
       paidAmount: round2(toNum(invoiceAgg._sum.paidAmount)),
       pendingAmount: round2(toNum(invoiceAgg._sum.balanceAmount)),
       totalBilled: round2(toNum(invoiceAgg._sum.grandTotal)),
       paymentCount: payments.length,
     },
+    byMethod: methodBreakdown(payments),
     payments,
   };
 }
@@ -308,10 +349,102 @@ async function getCustomerReport({ range, from, to }) {
   return { range, from: start, to: end, summary, data };
 }
 
+/** Full business report for a selected month + year (for PDF download). */
+async function getMonthlyReport({ month, year } = {}) {
+  const m = Number(month) || new Date().getMonth() + 1;
+  const y = Number(year) || new Date().getFullYear();
+  if (m < 1 || m > 12) throw new ApiError(400, 'Month must be between 1 and 12');
+  if (y < 2000 || y > 2100) throw new ApiError(400, 'Year is out of range');
+
+  const start = new Date(Date.UTC(y, m - 1, 1));
+  const end = new Date(Date.UTC(y, m, 1));
+  const monthWhere = { gte: start, lt: end };
+  const label = new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-IN', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+
+  const [rentalAgg, payments, invoiceAgg, returns, outstanding, rentals] = await Promise.all([
+    prisma.rental.aggregate({
+      where: { rentalDate: monthWhere },
+      _count: { _all: true },
+      _sum: { grandTotal: true },
+    }),
+    prisma.payment.findMany({
+      where: { paymentDate: monthWhere },
+      include: { rental: { include: { customer: true } } },
+      orderBy: { paymentDate: 'desc' },
+    }),
+    prisma.invoice.aggregate({
+      where: { invoiceDate: monthWhere },
+      _sum: {
+        grandTotal: true,
+        paidAmount: true,
+        balanceAmount: true,
+        overdueCharge: true,
+        damageCharge: true,
+      },
+    }),
+    prisma.return.findMany({
+      where: { returnDate: monthWhere },
+      include: { items: true },
+    }),
+    prisma.rental.aggregate({
+      where: { status: { not: 'CLOSED' }, balanceAmount: { gt: 0 } },
+      _count: { _all: true },
+      _sum: { balanceAmount: true },
+    }),
+    prisma.rental.findMany({
+      where: { rentalDate: monthWhere },
+      include: {
+        customer: true,
+        payments: { select: { amount: true } },
+      },
+      orderBy: { rentalDate: 'desc' },
+    }),
+  ]);
+
+  const method = methodTotals(payments);
+  let returnedUnits = 0;
+  for (const ret of returns) {
+    for (const it of ret.items || []) returnedUnits += toNum(it.returnedQuantity);
+  }
+
+  return {
+    month: m,
+    year: y,
+    label,
+    from: start,
+    to: end,
+    summary: {
+      totalRentals: rentalAgg._count._all || 0,
+      totalBilled: round2(toNum(rentalAgg._sum.grandTotal)),
+      totalRevenue: round2(payments.reduce((s, p) => s + toNum(p.amount), 0)),
+      cashTotal: method.cashTotal,
+      upiTotal: method.upiTotal,
+      otherTotal: method.otherTotal,
+      totalPayment: method.totalPayment,
+      paymentCount: payments.length,
+      pendingAmount: round2(toNum(invoiceAgg._sum.balanceAmount)),
+      overdueCharges: round2(toNum(invoiceAgg._sum.overdueCharge)),
+      damageCharges: round2(toNum(invoiceAgg._sum.damageCharge)),
+      returnsProcessed: returns.length,
+      returnedUnits,
+      outstandingRentals: outstanding._count._all || 0,
+      outstandingAmount: round2(toNum(outstanding._sum.balanceAmount)),
+    },
+    byMethod: methodBreakdown(payments),
+    payments,
+    rentals,
+  };
+}
+
 module.exports = {
   getDashboard,
   getRevenueReport,
   getRentalReport,
   getAssetReport,
   getCustomerReport,
+  getMonthlyReport,
 };

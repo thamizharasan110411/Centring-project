@@ -45,8 +45,8 @@ export default function LoginPage() {
             🏗️
           </div>
           <div>
-            <p className="text-base font-bold text-white">Centring Materials</p>
-            <p className="text-xs text-slate-400">Rental ERP</p>
+            <p className="text-base font-bold text-white">Eswari Enterprise</p>
+            <p className="text-xs text-slate-400">Construction Materials Rental</p>
           </div>
         </div>
         <div className="relative">
@@ -72,7 +72,7 @@ export default function LoginPage() {
             </li>
           </ul>
         </div>
-        <p className="relative text-xs text-slate-500">Centring Materials</p>
+        <p className="relative text-xs text-slate-500">Eswari Enterprise · Puducherry</p>
       </div>
 
       {/* Login form */}
@@ -83,13 +83,13 @@ export default function LoginPage() {
               🏗️
             </div>
             <div>
-              <p className="text-sm font-bold text-slate-900">Centring Materials</p>
-              <p className="text-[11px] text-slate-500">Rental ERP</p>
+              <p className="text-sm font-bold text-slate-900">Eswari Enterprise</p>
+              <p className="text-[11px] text-slate-500">Construction Materials Rental</p>
             </div>
           </div>
 
           <h2 className="text-2xl font-bold text-slate-900">Admin Login</h2>
-          <p className="mt-1 text-sm text-slate-500">Sign in to manage your rental business.</p>
+          <p className="mt-1 text-sm text-slate-500">Sign in to manage {`Eswari Enterprise`} rentals.</p>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-4">
             <div>

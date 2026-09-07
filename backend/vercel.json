@@ -4,8 +4,7 @@
   "crons": [
     {
       "path": "/api/system/clean-db",
-      "schedule": "0 0 1 */2 *",
-      "method": "POST"
+      "schedule": "0 0 1 */2 *"
     }
   ],
   "builds": [

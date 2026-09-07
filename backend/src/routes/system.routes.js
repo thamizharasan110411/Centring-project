@@ -1,5 +1,5 @@
 /* System/maintenance routes.
- * POST /api/system/clean-db — wipes all business data (schema + login stay).
+ * GET|POST /api/system/clean-db — wipes all business data (schema + login stay).
  * Protected by CRON_SECRET (Vercel cron jobs send it as `Authorization: Bearer <CRON_SECRET>`).
  * Can be disabled entirely with AUTO_CLEAN_ENABLED=false.
  */
@@ -8,7 +8,7 @@ const { resetAllData } = require('../services/reset.service');
 
 const router = Router();
 
-router.post('/clean-db', async (req, res, next) => {
+router.all('/clean-db', async (req, res, next) => {
   try {
     const secret = process.env.CRON_SECRET;
     const auth = req.headers.authorization || '';

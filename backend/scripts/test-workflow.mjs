@@ -91,8 +91,19 @@ async function main() {
   const couplerRow = overdue.data.find((r) => r.rentalNumber === 'RNT-0002' && r.assetName === 'Coupler');
   check('RNT-0002 pipe row: 500 remaining, 6 days', pipeRow && num(pipeRow.remainingQuantity) === 500 && pipeRow.extraDays === 6,
     `got ${pipeRow?.remainingQuantity}/${pipeRow?.extraDays}`);
-  check('RNT-0002 pipe overdue = 500×3×6 = 9000', pipeRow && num(pipeRow.overdueCharge) === 9000, `got ${pipeRow?.overdueCharge}`);
-  check('RNT-0002 coupler overdue = 600×2×6 = 7200', couplerRow && num(couplerRow.overdueCharge) === 7200, `got ${couplerRow?.overdueCharge}`);
+  // Overdue charge is MANUAL: the report distributes the stored charge
+  // (16200) across outstanding rows by remaining quantity — never auto-computed.
+  const storedOverdue = num(rnt2?.overdueCharge);
+  const totalRemaining = num(pipeRow?.remainingQuantity || 0) + num(couplerRow?.remainingQuantity || 0);
+  check('RNT-0002 overdue rows sum to the stored manual charge (16200)',
+    num(pipeRow?.overdueCharge) + num(couplerRow?.overdueCharge) === storedOverdue,
+    `sum ${num(pipeRow?.overdueCharge) + num(couplerRow?.overdueCharge)} != ${storedOverdue}`);
+  check('RNT-0002 pipe row = share of stored charge (500/1100 × 16200 = 7363.64)',
+    pipeRow && Math.abs(num(pipeRow.overdueCharge) - (storedOverdue * num(pipeRow.remainingQuantity) / totalRemaining)) < 0.01,
+    `got ${pipeRow?.overdueCharge}`);
+  check('RNT-0002 coupler row = share of stored charge (600/1100 × 16200 = 8836.36)',
+    couplerRow && Math.abs(num(couplerRow.overdueCharge) - (storedOverdue * num(couplerRow.remainingQuantity) / totalRemaining)) < 0.01,
+    `got ${couplerRow?.overdueCharge}`);
 
   const reminderById = await api('GET', `/rentals/${rnt2.id}/reminder`);
   check('reminder built', reminderById.ok && reminderById.data.whatsappUrl.includes('wa.me'), reminderById.error);

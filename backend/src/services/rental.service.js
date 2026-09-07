@@ -56,7 +56,7 @@ async function listRentals({ page = 1, limit = 10, search, status, customerId } 
       { customer: { mobile: { contains: search } } },
     ];
   }
-  const take = Math.min(Math.max(Number(limit) || 10, 1), 100);
+  const take = Math.min(Math.max(Number(limit) || 10, 1), 500);
   const skip = (Math.max(Number(page) || 1, 1) - 1) * take;
 
   const [total, rentals] = await Promise.all([
@@ -340,6 +340,11 @@ async function listOverdueRentals() {
   const today = todayStart();
   for (const rental of rentals) {
     const extraDays = dayDiff(rental.dueDate, today);
+    // Overdue charge is MANUAL (set on the return/edit screens) — never
+    // auto-computed. Distribute the stored charge across the outstanding
+    // lines by remaining quantity so row totals add up to the stored amount.
+    const totalRemaining = rental.items.reduce((s, it) => s + Math.max(0, remainingQty(it)), 0);
+    const storedCharge = toNum(rental.overdueCharge);
     for (const item of rental.items) {
       const rem = remainingQty(item);
       if (rem > 0) {
@@ -357,7 +362,7 @@ async function listOverdueRentals() {
           dueDate: rental.dueDate,
           extraDays,
           dailyRate: item.rentalRate,
-          overdueCharge: round2(rem * toNum(item.rentalRate) * extraDays),
+          overdueCharge: totalRemaining > 0 ? round2(storedCharge * (rem / totalRemaining)) : 0,
           rentalBalance: rental.balanceAmount,
           status: rental.status,
         });

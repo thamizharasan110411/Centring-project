@@ -8,7 +8,7 @@ import StatusBadge from '../components/StatusBadge';
 import { Spinner, ErrorState, EmptyState } from '../components/Loading';
 import MonthlyReportDocument from '../components/MonthlyReportDocument';
 import { RENTAL_STATUSES, BUSINESS } from '../utils/constants';
-import { inr, num, fmtDate, todayInput } from '../utils/format';
+import { inr, num, fmtDate } from '../utils/format';
 
 const TABS = [
   { key: 'revenue', label: 'Revenue' },

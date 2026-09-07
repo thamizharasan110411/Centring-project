@@ -25,7 +25,7 @@ async function listInvoices({ page = 1, limit = 10, status, search } = {}) {
       { rental: { customer: { name: { contains: search, mode: 'insensitive' } } } },
     ];
   }
-  const take = Math.min(Math.max(Number(limit) || 10, 1), 100);
+  const take = Math.min(Math.max(Number(limit) || 10, 1), 500);
   const skip = (Math.max(Number(page) || 1, 1) - 1) * take;
 
   const [total, invoices] = await Promise.all([

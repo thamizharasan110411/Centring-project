@@ -51,18 +51,6 @@ function SidebarContent({ onNavigate }) {
   );
 }
 
-const PAGE_TITLES = {
-  '/dashboard': 'Dashboard',
-  '/assets': 'Assets',
-  '/customers': 'Customers',
-  '/rentals': 'Rentals',
-  '/returns': 'Returns',
-  '/overdue': 'Overdue',
-  '/invoices': 'Billing',
-  '/payments': 'Payments',
-  '/reports': 'Reports',
-};
-
 export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { admin, logout } = useAuth();

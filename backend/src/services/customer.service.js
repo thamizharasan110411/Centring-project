@@ -1,6 +1,6 @@
 const prisma = require('../prisma');
 const ApiError = require('../utils/ApiError');
-const { nextCode } = require('../utils/numbers');
+const { nextCode, withUniqueRetry } = require('../utils/numbers');
 const { toNum, round2 } = require('../utils/money');
 const { refreshAllOverdue } = require('./totals.service');
 const {
@@ -8,6 +8,8 @@ const {
   requiredString,
   optionalString,
   asPositiveInt,
+  asMobile,
+  optionalMobile,
 } = require('../utils/validation');
 
 const CUSTOMER_INCLUDE = {
@@ -64,8 +66,8 @@ function customerStats(customer) {
 function sanitize(body) {
   return {
     name: requiredString(body.name, 'Name'),
-    mobile: requiredString(body.mobile, 'Mobile'),
-    alternateMobile: optionalString(body.alternateMobile),
+    mobile: asMobile(body.mobile, 'Mobile'),
+    alternateMobile: optionalMobile(body.alternateMobile, 'Alternate mobile'),
     address: optionalString(body.address),
     projectName: optionalString(body.projectName),
     projectAddress: optionalString(body.projectAddress),
@@ -84,7 +86,7 @@ async function listCustomers({ page = 1, limit = 10, search } = {}) {
       { projectName: { contains: search, mode: 'insensitive' } },
     ];
   }
-  const take = Math.min(Math.max(Number(limit) || 10, 1), 100);
+  const take = Math.min(Math.max(Number(limit) || 10, 1), 500);
   const skip = (Math.max(Number(page) || 1, 1) - 1) * take;
 
   const [total, customers] = await Promise.all([
@@ -113,8 +115,10 @@ async function getCustomer(id) {
 
 async function createCustomer(body) {
   const data = sanitize(body);
-  const customerCode = await nextCode(prisma, 'customer', 'customerCode');
-  return prisma.customer.create({ data: { ...data, customerCode } });
+  return withUniqueRetry(async () => {
+    const customerCode = await nextCode(prisma, 'customer', 'customerCode');
+    return prisma.customer.create({ data: { ...data, customerCode } });
+  });
 }
 
 async function updateCustomer(id, body) {

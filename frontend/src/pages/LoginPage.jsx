@@ -60,7 +60,7 @@ export default function LoginPage() {
             </li>
             <li className="flex items-center gap-3">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600/30 text-xs">✓</span>
-              Automatic overdue detection and charges
+              Overdue tracking with manual overdue &amp; damage charges
             </li>
             <li className="flex items-center gap-3">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600/30 text-xs">✓</span>
@@ -148,13 +148,8 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-8 rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs leading-relaxed text-slate-500">
-            <p className="font-semibold text-slate-600">Default credentials</p>
-            <p>
-              Username: <code className="rounded bg-slate-100 px-1 py-0.5">admin</code>
-              <br />
-              Password: <code className="rounded bg-slate-100 px-1 py-0.5">admin123</code>
-            </p>
-            <p className="mt-1">Change them in the backend .env file before going live.</p>
+            <p className="font-semibold text-slate-600">Secure access</p>
+            <p>Login credentials are configured by the administrator. Repeated failed attempts are temporarily locked out.</p>
           </div>
         </div>
       </div>

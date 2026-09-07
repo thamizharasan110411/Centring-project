@@ -85,7 +85,7 @@ export default function InvoiceDetailPage() {
 
         {Number(invoice.overdueCharge) > 0 && (
           <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            ⚠️ This invoice includes an automatic overdue charge of <b>{inr(invoice.overdueCharge)}</b> for the late return period.
+            ⚠️ This invoice includes an overdue charge of <b>{inr(invoice.overdueCharge)}</b> set manually for the late return period.
           </div>
         )}
       </div>

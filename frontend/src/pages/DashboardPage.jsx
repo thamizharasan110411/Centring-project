@@ -166,7 +166,7 @@ export default function DashboardPage() {
                     {i + 1}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <Link to={`/assets/${a.assetId}`} className="text-sm font-medium text-slate-800 hover:text-indigo-600">
+                    <Link to="/assets" className="text-sm font-medium text-slate-800 hover:text-indigo-600">
                       {a.name}
                     </Link>
                     <p className="text-xs text-slate-400">{a.assetCode} · {a.unit}</p>

@@ -1,6 +1,6 @@
 const prisma = require('../prisma');
 const ApiError = require('../utils/ApiError');
-const { nextCode } = require('../utils/numbers');
+const { nextCode, withUniqueRetry } = require('../utils/numbers');
 const { assert, requiredString, optionalString, asPositiveInt, asNonNegativeInt, asNonNegativeNumber, asEnum } = require('../utils/validation');
 
 const RATE_TYPES = ['PER_DAY', 'PER_WEEK', 'PER_MONTH'];
@@ -54,7 +54,7 @@ async function listAssets({ page = 1, limit = 10, search, category } = {}) {
   }
   if (category) where.category = category;
 
-  const take = Math.min(Math.max(Number(limit) || 10, 1), 100);
+  const take = Math.min(Math.max(Number(limit) || 10, 1), 500);
   const skip = (Math.max(Number(page) || 1, 1) - 1) * take;
 
   const [total, assets] = await Promise.all([
@@ -99,8 +99,10 @@ async function getAsset(id) {
 
 async function createAsset(body) {
   const data = sanitize(body, null);
-  const assetCode = await nextCode(prisma, 'asset', 'assetCode');
-  return prisma.asset.create({ data: { ...data, assetCode } });
+  return withUniqueRetry(async () => {
+    const assetCode = await nextCode(prisma, 'asset', 'assetCode');
+    return prisma.asset.create({ data: { ...data, assetCode } });
+  });
 }
 
 async function updateAsset(id, body) {

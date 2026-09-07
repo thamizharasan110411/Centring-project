@@ -1,12 +1,13 @@
 const prisma = require('../prisma');
 const ApiError = require('../utils/ApiError');
 const { toNum } = require('../utils/money');
-const { parseDateInput, todayStart } = require('../utils/dates');
+const { todayStart } = require('../utils/dates');
 const {
   assert,
   asPositiveInt,
   asPositiveNumber,
   asEnum,
+  asDate,
   optionalString,
 } = require('../utils/validation');
 const { recomputeRentalTotals, enrichRental } = require('./totals.service');
@@ -33,7 +34,7 @@ async function listPayments({ page = 1, limit = 10, method, rentalId, search } =
       { rental: { customer: { name: { contains: search, mode: 'insensitive' } } } },
     ];
   }
-  const take = Math.min(Math.max(Number(limit) || 10, 1), 100);
+  const take = Math.min(Math.max(Number(limit) || 10, 1), 500);
   const skip = (Math.max(Number(page) || 1, 1) - 1) * take;
 
   const [total, payments] = await Promise.all([
@@ -59,9 +60,7 @@ async function recordPayment(body) {
   const amount = asPositiveNumber(body.amount, 'Payment amount');
   const paymentMethod = asEnum(body.paymentMethod || 'CASH', PAYMENT_METHODS, 'Payment method');
 
-  const paymentDate = body.paymentDate
-    ? parseDateInput(body.paymentDate) || todayStart()
-    : todayStart();
+  const paymentDate = body.paymentDate ? asDate(body.paymentDate, 'Payment date') : todayStart();
 
   const rental = await prisma.rental.findUnique({ where: { id: rentalId } });
   if (!rental) throw new ApiError(404, 'Rental not found');

@@ -24,11 +24,11 @@ export default function NewRentalPage() {
   const navigate = useNavigate();
 
   const { data: customers, loading: customersLoading, error: customersError } = useFetch(
-    () => client.get('/customers', { params: { limit: 100 } }).then((r) => r.data),
+    () => client.get('/customers', { params: { limit: 500 } }).then((r) => r.data),
     []
   );
   const { data: assets, loading: assetsLoading, error: assetsError } = useFetch(
-    () => client.get('/assets', { params: { limit: 100 } }).then((r) => r.data),
+    () => client.get('/assets', { params: { limit: 500 } }).then((r) => r.data),
     []
   );
 

@@ -19,7 +19,7 @@ export default function ReturnPage() {
   const { data: openRentals, loading: listLoading } = useFetch(
     () =>
       client
-        .get('/rentals', { params: { limit: 100, status: 'ACTIVE,PARTIALLY_RETURNED,OVERDUE' } })
+        .get('/rentals', { params: { limit: 500, status: 'ACTIVE,PARTIALLY_RETURNED,OVERDUE' } })
         .then((r) => r.data),
     []
   );

@@ -29,7 +29,7 @@ export default function PaymentModal({ rentalId, onClose, onSaved }) {
 
   // Fetch rentals that still carry a balance.
   const { data: listData } = useFetch(
-    () => client.get('/rentals', { params: { limit: 100, status: 'ACTIVE,PARTIALLY_RETURNED,OVERDUE,RETURNED' } }).then((r) => r.data),
+    () => client.get('/rentals', { params: { limit: 500, status: 'ACTIVE,PARTIALLY_RETURNED,OVERDUE,RETURNED' } }).then((r) => r.data),
     []
   );
   const outstandingRentals = useMemo(

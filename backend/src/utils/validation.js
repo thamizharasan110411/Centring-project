@@ -46,6 +46,18 @@ function asNonNegativeInt(value, label) {
   return n;
 }
 
+function asMobile(value, label) {
+  const s = requiredString(value, label);
+  const digits = s.replace(/\D/g, '');
+  assert(/^\d{10}$/.test(digits), `${label} must be a valid 10-digit mobile number`);
+  return s;
+}
+
+function optionalMobile(value, label) {
+  if (value === undefined || value === null || String(value).trim() === '') return null;
+  return asMobile(value, label);
+}
+
 function asDate(value, label) {
   const parsed = parseDateInput(value);
   assert(parsed, `${label} must be a valid date (YYYY-MM-DD)`);
@@ -68,4 +80,6 @@ module.exports = {
   asNonNegativeInt,
   asDate,
   asEnum,
+  asMobile,
+  optionalMobile,
 };

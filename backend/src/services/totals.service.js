@@ -88,32 +88,39 @@ async function recomputeRentalTotals(tx, rentalId) {
   const grandTotal = computeGrandTotal(rental);
   const balance = round2(grandTotal - paid);
 
-  const rentalUpdate = {
-    grandTotal,
-    balanceAmount: balance,
-    status,
-  };
+  // Change detection: only write when a value actually changed. This keeps
+  // read-path refreshes (refreshAllOverdue before lists/dashboard) from
+  // hammering the DB with no-op updates on every GET.
+  const rentalUpdate = {};
+  if (status !== rental.status) rentalUpdate.status = status;
+  if (toNum(rental.grandTotal) !== grandTotal) rentalUpdate.grandTotal = grandTotal;
+  if (toNum(rental.balanceAmount) !== balance) rentalUpdate.balanceAmount = balance;
   if (allReturned && !rental.returnDate) rentalUpdate.returnDate = today;
 
-  await tx.rental.update({ where: { id: rentalId }, data: rentalUpdate });
+  if (Object.keys(rentalUpdate).length > 0) {
+    await tx.rental.update({ where: { id: rentalId }, data: rentalUpdate });
+  }
 
   if (rental.invoice) {
-    await tx.invoice.update({
-      where: { id: rental.invoice.id },
-      data: {
-        subtotal: rental.subtotal,
-        overdueCharge: overdueCharge,
-        damageCharge: rental.damageCharge,
-        missingCharge: rental.missingCharge,
-        transportCharge: rental.transportCharge,
-        otherCharge: rental.otherCharge,
-        discount: rental.discount,
-        grandTotal,
-        paidAmount: round2(paid),
-        balanceAmount: balance,
-        status: invoiceStatusFor(balance, paid),
-      },
-    });
+    const invoiceData = {
+      subtotal: rental.subtotal,
+      overdueCharge: overdueCharge,
+      damageCharge: rental.damageCharge,
+      missingCharge: rental.missingCharge,
+      transportCharge: rental.transportCharge,
+      otherCharge: rental.otherCharge,
+      discount: rental.discount,
+      grandTotal,
+      paidAmount: round2(paid),
+      balanceAmount: balance,
+      status: invoiceStatusFor(balance, paid),
+    };
+    const invoiceChanged = Object.keys(invoiceData).some(
+      (k) => toNum(rental.invoice[k]) !== toNum(invoiceData[k])
+    );
+    if (invoiceChanged) {
+      await tx.invoice.update({ where: { id: rental.invoice.id }, data: invoiceData });
+    }
   }
 
   return {

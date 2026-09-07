@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 import { useFetch } from '../hooks/useFetch';
+import { useSessionState } from '../hooks/useSessionState';
 import PageHeader from '../components/PageHeader';
 import Pagination from '../components/Pagination';
 import StatusBadge from '../components/StatusBadge';
@@ -10,9 +11,10 @@ import { INVOICE_STATUSES, INVOICE_STATUS_FILTERS } from '../utils/constants';
 import { inr, fmtDate } from '../utils/format';
 
 export default function InvoicesPage() {
-  const [status, setStatus] = useState('');
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  // Filters/search/page survive a page refresh (sessionStorage).
+  const [status, setStatus] = useSessionState('rf:invoices-status', '');
+  const [search, setSearch] = useSessionState('rf:invoices-search', '');
+  const [page, setPage] = useSessionState('rf:invoices-page', 1);
 
   const params = useMemo(
     () => ({ page, limit: 10, search: search || undefined, status: status || undefined }),
@@ -23,6 +25,12 @@ export default function InvoicesPage() {
     () => client.get('/invoices', { params }).then((r) => r),
     [page, search, status]
   );
+
+  // Keep a restored page number valid if the dataset has shrunk.
+  useEffect(() => {
+    const totalPages = data?.meta?.totalPages;
+    if (totalPages && page > totalPages) setPage(totalPages);
+  }, [data?.meta?.totalPages, page, setPage]);
 
   return (
     <div>

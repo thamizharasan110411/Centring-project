@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 import { useFetch } from '../hooks/useFetch';
+import { useSessionState } from '../hooks/useSessionState';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import StatusBadge from '../components/StatusBadge';
@@ -39,15 +40,16 @@ const METHOD_LABEL = {
 };
 
 export default function ReportsPage() {
-  const [tab, setTab] = useState('revenue');
-  const [range, setRange] = useState('month');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // Tab/filters survive a page refresh (sessionStorage).
+  const [tab, setTab] = useSessionState('rf:reports-tab', 'revenue');
+  const [range, setRange] = useSessionState('rf:reports-range', 'month');
+  const [from, setFrom] = useSessionState('rf:reports-from', '');
+  const [to, setTo] = useSessionState('rf:reports-to', '');
 
   // Monthly business report state
   const now = new Date();
-  const [reportMonth, setReportMonth] = useState(now.getMonth() + 1);
-  const [reportYear, setReportYear] = useState(now.getFullYear());
+  const [reportMonth, setReportMonth] = useSessionState('rf:reports-month', now.getMonth() + 1);
+  const [reportYear, setReportYear] = useSessionState('rf:reports-year', now.getFullYear());
   const [monthly, setMonthly] = useState(null);
   const [monthlyError, setMonthlyError] = useState('');
   const [printing, setPrinting] = useState(false);

@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import client from '../api/client';
 import { useFetch } from '../hooks/useFetch';
+import { useSessionState } from '../hooks/useSessionState';
 import PageHeader from '../components/PageHeader';
 import Pagination from '../components/Pagination';
 import StatusBadge from '../components/StatusBadge';
@@ -14,8 +15,9 @@ import { inr, fmtDate } from '../utils/format';
 export default function RentalsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const status = searchParams.get('status') || '';
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  // Search/page survive a page refresh (sessionStorage); status already lives in the URL.
+  const [search, setSearch] = useSessionState('rf:rentals-search', '');
+  const [page, setPage] = useSessionState('rf:rentals-page', 1);
   const [payRental, setPayRental] = useState(null);
 
   const params = useMemo(
@@ -33,6 +35,12 @@ export default function RentalsPage() {
     if (value) setSearchParams({ status: value });
     else setSearchParams({});
   };
+
+  // Keep a restored page number valid if the dataset has shrunk.
+  useEffect(() => {
+    const totalPages = data?.meta?.totalPages;
+    if (totalPages && page > totalPages) setPage(totalPages);
+  }, [data?.meta?.totalPages, page, setPage]);
 
   return (
     <div>

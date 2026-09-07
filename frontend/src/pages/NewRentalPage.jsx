@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import client from '../api/client';
 import { useFetch } from '../hooks/useFetch';
@@ -19,6 +19,36 @@ function lineAmount(qty, rate, days, rateType) {
 
 const emptyRow = (days) => ({ assetId: '', quantity: '', rate: '', days: String(days), error: null });
 
+/* ------------------------------------------------------------------ */
+/* Draft autosave: the rental form survives accidental refreshes.      */
+/* Stored in localStorage (non-sensitive business data), cleared on    */
+/* successful submit or explicit discard, and on logout.               */
+/* ------------------------------------------------------------------ */
+const DRAFT_KEY = 'draft:new-rental';
+
+function readDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    return d && typeof d === 'object' ? d : null;
+  } catch {
+    return null;
+  }
+}
+
+function draftRows() {
+  const rows = readDraft()?.rows;
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  return rows.map((r) => ({
+    assetId: r?.assetId || '',
+    quantity: r?.quantity ?? '',
+    rate: r?.rate ?? '',
+    days: r?.days ?? '',
+    error: null,
+  }));
+}
+
 export default function NewRentalPage() {
   const toast = useToast();
   const navigate = useNavigate();
@@ -32,22 +62,83 @@ export default function NewRentalPage() {
     []
   );
 
-  const [customerId, setCustomerId] = useState('');
-  const [rentalDate, setRentalDate] = useState(todayInput());
-  const [dueDate, setDueDate] = useState(addDaysInput(15));
-  const [transportCharge, setTransportCharge] = useState('');
-  const [otherCharge, setOtherCharge] = useState('');
-  const [discount, setDiscount] = useState('');
-  const [securityDeposit, setSecurityDeposit] = useState('');
-  const [advancePaid, setAdvancePaid] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('CASH');
-  const [notes, setNotes] = useState('');
-  const [rows, setRows] = useState([emptyRow(15)]);
+  // Restore a saved draft on refresh so nothing typed is ever lost.
+  const [customerId, setCustomerId] = useState(() => readDraft()?.customerId || '');
+  const [rentalDate, setRentalDate] = useState(() => readDraft()?.rentalDate || todayInput());
+  const [dueDate, setDueDate] = useState(() => readDraft()?.dueDate || addDaysInput(15));
+  const [transportCharge, setTransportCharge] = useState(() => readDraft()?.transportCharge ?? '');
+  const [otherCharge, setOtherCharge] = useState(() => readDraft()?.otherCharge ?? '');
+  const [discount, setDiscount] = useState(() => readDraft()?.discount ?? '');
+  const [securityDeposit, setSecurityDeposit] = useState(() => readDraft()?.securityDeposit ?? '');
+  const [advancePaid, setAdvancePaid] = useState(() => readDraft()?.advancePaid ?? '');
+  const [paymentMethod, setPaymentMethod] = useState(() => readDraft()?.paymentMethod || 'CASH');
+  const [notes, setNotes] = useState(() => readDraft()?.notes ?? '');
+  const [rows, setRows] = useState(() => draftRows() || [emptyRow(15)]);
+  const [draftRestored, setDraftRestored] = useState(() => Boolean(readDraft()));
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
+  // Autosave the draft on every change. An untouched (empty) form is not
+  // saved, so no phantom "draft restored" banner ever appears.
+  useEffect(() => {
+    const hasContent =
+      Boolean(customerId) ||
+      rows.some((r) => r.assetId || r.quantity !== '' || r.rate !== '') ||
+      [transportCharge, otherCharge, discount, securityDeposit, advancePaid, notes].some(
+        (v) => v !== '' && v !== null && v !== undefined
+      );
+    try {
+      if (!hasContent) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      const draft = {
+        customerId,
+        rentalDate,
+        dueDate,
+        transportCharge,
+        otherCharge,
+        discount,
+        securityDeposit,
+        advancePaid,
+        paymentMethod,
+        notes,
+        rows: rows.map(({ assetId, quantity, rate, days }) => ({ assetId, quantity, rate, days })),
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      // Storage unavailable — the form still works in memory.
+    }
+  }, [customerId, rentalDate, dueDate, transportCharge, otherCharge, discount, securityDeposit, advancePaid, paymentMethod, notes, rows]);
+
+  const discardDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      // ignore
+    }
+    setCustomerId('');
+    setRentalDate(todayInput());
+    setDueDate(addDaysInput(15));
+    setTransportCharge('');
+    setOtherCharge('');
+    setDiscount('');
+    setSecurityDeposit('');
+    setAdvancePaid('');
+    setPaymentMethod('CASH');
+    setNotes('');
+    setRows([emptyRow(15)]);
+    setDraftRestored(false);
+  };
+
   const assetMap = useMemo(() => new Map((assets || []).map((a) => [a.id, a])), [assets]);
   const rentableAssets = useMemo(() => (assets || []).filter((a) => Number(a.availableQuantity) > 0), [assets]);
+
+  // Drop draft rows whose asset no longer exists (deleted since the draft).
+  useEffect(() => {
+    if (!assets) return;
+    setRows((rs) => rs.filter((r) => !r.assetId || assetMap.has(Number(r.assetId))));
+  }, [assets, assetMap]);
 
   const selectedCustomer = customers?.find((c) => String(c.id) === String(customerId));
 
@@ -120,6 +211,12 @@ export default function NewRentalPage() {
         })),
       };
       const res = await client.post('/rentals', payload);
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        // ignore
+      }
+      setDraftRestored(false);
       toast.success(`Rental ${res.data.rentalNumber} created — inventory updated`);
       navigate(`/rentals/${res.data.id}`);
     } catch (err) {
@@ -138,6 +235,19 @@ export default function NewRentalPage() {
       <PageHeader title="New Rental" subtitle="Create a rental — inventory and invoice update automatically">
         <Link to="/rentals" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">← Rentals</Link>
       </PageHeader>
+
+      {draftRestored && (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span>📝 Draft restored from your last visit — your unsaved rental was kept.</span>
+          <button
+            type="button"
+            onClick={discardDraft}
+            className="rounded-lg border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100"
+          >
+            Discard draft
+          </button>
+        </div>
+      )}
 
       <form onSubmit={submit} className="space-y-6">
         {/* Customer */}

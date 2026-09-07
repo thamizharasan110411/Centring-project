@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 import { useFetch } from '../hooks/useFetch';
+import { useSessionState } from '../hooks/useSessionState';
 import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../context/ConfirmContext';
 import PageHeader from '../components/PageHeader';
@@ -19,8 +20,9 @@ const EMPTY_FORM = {
 export default function CustomersPage() {
   const toast = useToast();
   const confirm = useConfirm();
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  // Search/page survive a page refresh (sessionStorage).
+  const [search, setSearch] = useSessionState('rf:customers-search', '');
+  const [page, setPage] = useSessionState('rf:customers-page', 1);
 
   const params = useMemo(
     () => ({ page, limit: 10, search: search || undefined }),
@@ -31,6 +33,12 @@ export default function CustomersPage() {
     () => client.get('/customers', { params }).then((r) => r),
     [page, search]
   );
+
+  // Keep a restored page number valid if the dataset has shrunk.
+  useEffect(() => {
+    const totalPages = data?.meta?.totalPages;
+    if (totalPages && page > totalPages) setPage(totalPages);
+  }, [data?.meta?.totalPages, page, setPage]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);

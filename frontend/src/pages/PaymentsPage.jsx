@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 import { useFetch } from '../hooks/useFetch';
+import { useSessionState } from '../hooks/useSessionState';
 import PageHeader from '../components/PageHeader';
 import Pagination from '../components/Pagination';
 import PaymentModal from '../components/PaymentModal';
@@ -11,9 +12,10 @@ import { PAYMENT_METHOD_FILTERS } from '../utils/constants';
 import { inr, fmtDate } from '../utils/format';
 
 export default function PaymentsPage() {
-  const [method, setMethod] = useState('');
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  // Filters/search/page survive a page refresh (sessionStorage).
+  const [method, setMethod] = useSessionState('rf:payments-method', '');
+  const [search, setSearch] = useSessionState('rf:payments-search', '');
+  const [page, setPage] = useSessionState('rf:payments-page', 1);
   const [modalOpen, setModalOpen] = useState(false);
 
   const params = useMemo(
@@ -25,6 +27,12 @@ export default function PaymentsPage() {
     () => client.get('/payments', { params }).then((r) => r),
     [page, method, search]
   );
+
+  // Keep a restored page number valid if the dataset has shrunk.
+  useEffect(() => {
+    const totalPages = data?.meta?.totalPages;
+    if (totalPages && page > totalPages) setPage(totalPages);
+  }, [data?.meta?.totalPages, page, setPage]);
 
   return (
     <div>

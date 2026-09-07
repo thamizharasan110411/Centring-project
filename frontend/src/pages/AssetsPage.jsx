@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 import { useFetch } from '../hooks/useFetch';
+import { useSessionState } from '../hooks/useSessionState';
 import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../context/ConfirmContext';
 import PageHeader from '../components/PageHeader';
@@ -21,9 +22,10 @@ const EMPTY_FORM = {
 export default function AssetsPage() {
   const toast = useToast();
   const confirm = useConfirm();
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('');
-  const [page, setPage] = useState(1);
+  // Filters/search/page survive a page refresh (sessionStorage).
+  const [search, setSearch] = useSessionState('rf:assets-search', '');
+  const [category, setCategory] = useSessionState('rf:assets-category', '');
+  const [page, setPage] = useSessionState('rf:assets-page', 1);
 
   const params = useMemo(
     () => ({ page, limit: 10, search: search || undefined, category: category || undefined }),
@@ -36,6 +38,12 @@ export default function AssetsPage() {
   );
 
   const { data: categories } = useFetch(() => client.get('/assets/categories').then((r) => r.data), []);
+
+  // Keep a restored page number valid if the dataset has shrunk.
+  useEffect(() => {
+    const totalPages = data?.meta?.totalPages;
+    if (totalPages && page > totalPages) setPage(totalPages);
+  }, [data?.meta?.totalPages, page, setPage]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);

@@ -62,6 +62,17 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(ADMIN_KEY);
+    localStorage.removeItem('draft:new-rental');
+    // Clear persisted per-page UI state (filters/tabs) so the next session
+    // starts clean. Draft + filters are restored only across refreshes, not
+    // across logins.
+    try {
+      for (const key of Object.keys(sessionStorage)) {
+        if (key.startsWith('rf:')) sessionStorage.removeItem(key);
+      }
+    } catch {
+      // ignore
+    }
     setToken(null);
     setAdmin(null);
   }, []);

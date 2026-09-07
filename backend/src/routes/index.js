@@ -8,11 +8,13 @@ const rentalRoutes = require('./rental.routes');
 const paymentRoutes = require('./payment.routes');
 const invoiceRoutes = require('./invoice.routes');
 const reportRoutes = require('./report.routes');
+const systemRoutes = require('./system.routes');
 const { requireAuth } = require('../middleware/auth.middleware');
 
-// Public: health check and admin login.
+// Public: health check, admin login, and system maintenance (secret-protected).
 router.get('/health', (req, res) => res.json({ success: true, data: { status: 'ok', time: new Date().toISOString() } }));
 router.use('/auth', authRoutes);
+router.use('/system', systemRoutes);
 
 // Everything below requires a valid admin token.
 router.use(requireAuth);

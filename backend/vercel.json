@@ -1,6 +1,13 @@
 {
   "version": 2,
   "regions": ["sin1"],
+  "crons": [
+    {
+      "path": "/api/system/clean-db",
+      "schedule": "0 0 1 */2 *",
+      "method": "POST"
+    }
+  ],
   "builds": [
     {
       "src": "src/app.js",
